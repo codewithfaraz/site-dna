@@ -1,6 +1,6 @@
 import "server-only";
 
-import { chromium } from "playwright";
+import type { Browser } from "playwright";
 
 import { clusterColors } from "@/src/lib/analyzer/clusterColors";
 import { clusterSpacing } from "@/src/lib/analyzer/clusterSpacing";
@@ -47,7 +47,7 @@ export async function analyzeWebsite(
   normalizedUrl = url,
 ): Promise<WebsiteExtractionResult> {
   const analysisStartedAt = Date.now();
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchAnalysisBrowser();
   const snapshots: ViewportDomSnapshot[] = [];
   const screenshots = {
     desktop: "",
@@ -172,6 +172,28 @@ export async function analyzeWebsite(
     screenshots,
     rawExtraction,
   };
+}
+
+async function launchAnalysisBrowser(): Promise<Browser> {
+  if (isServerlessChromiumRuntime()) {
+    const [{ chromium: playwrightChromium }, chromium] = await Promise.all([
+      import("playwright-core"),
+      import("@sparticuz/chromium"),
+    ]);
+
+    return playwrightChromium.launch({
+      args: chromium.default.args,
+      executablePath: await chromium.default.executablePath(),
+      headless: true,
+    });
+  }
+
+  const { chromium } = await import("playwright");
+  return chromium.launch({ headless: true });
+}
+
+function isServerlessChromiumRuntime() {
+  return Boolean(process.env.VERCEL || process.env.AWS_REGION || process.env.AWS_LAMBDA_FUNCTION_NAME);
 }
 
 function extractRadius(elements: ViewportDomSnapshot["elements"]) {
