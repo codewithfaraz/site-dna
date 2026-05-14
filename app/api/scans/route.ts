@@ -7,6 +7,7 @@ import { CreateScanRequestSchema } from "@/src/lib/schemas/scanRequest";
 import type { SiteScanResult } from "@/src/lib/scans/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {

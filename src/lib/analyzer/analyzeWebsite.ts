@@ -69,12 +69,19 @@ export async function analyzeWebsite(
         deviceScaleFactor: 1,
         locale: "en-US",
         colorScheme: "light",
+        serviceWorkers: "block",
+        ignoreHTTPSErrors: true,
       });
 
       try {
         await context.route("**/*", (route) => {
           const resourceType = route.request().resourceType();
-          if (resourceType === "media") {
+          if (
+            resourceType === "media" ||
+            resourceType === "websocket" ||
+            resourceType === "manifest" ||
+            resourceType === "eventsource"
+          ) {
             return route.abort();
           }
           return route.continue();
@@ -181,8 +188,13 @@ async function launchAnalysisBrowser(): Promise<Browser> {
       import("@sparticuz/chromium"),
     ]);
 
+    chromium.default.setGraphicsMode = false;
+    const launchArgs = chromium.default.args.filter(
+      (arg) => !["--single-process", "--in-process-gpu"].includes(arg),
+    );
+
     return playwrightChromium.launch({
-      args: chromium.default.args,
+      args: launchArgs,
       executablePath: await chromium.default.executablePath(),
       headless: true,
     });
@@ -381,6 +393,12 @@ function getAnalysisErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     if (error.message.includes("ERR_CONNECTION")) {
       return "The website could not be reached from the analyzer.";
+    }
+    if (
+      error.message.includes("Target page, context or browser has been closed") ||
+      error.message.includes("Browser logs:")
+    ) {
+      return "The hosted browser ran out of resources while analyzing that website. Try a lighter page, increase your Vercel function memory/duration, or retry.";
     }
     if (error.message.toLowerCase().includes("timeout")) {
       return "The website took too long to load for analysis.";
